@@ -83,24 +83,6 @@ Installs Python venv, PyTorch with CUDA support, and all dependencies automatica
 Double-click: run_app.bat
 ```
 
-<br>
-
-## ⚙️ Configuration (`.env`)
-
-```env
-# --- AI via OpenRouter (all models go through one key) ---
-OPENROUTER_API_KEY=sk-or-v1-...
-
-# Call 1: Vision AI — reads images, produces story JSON
-OPENROUTER_MODEL_CALL_1=google/gemini-2.5-flash
-
-# Call 2: Text AI — reads story JSON, writes narration script
-OPENROUTER_MODEL_CALL_2=deepseek/deepseek-chat-v3-0324
-```
-
-You can swap any vision/text model available on OpenRouter — just update the model string.
-
-<br>
 
 ## 📁 Project Structure
 
@@ -159,13 +141,13 @@ yt-content-automation/
 | Component | Cost |
 |---|---|
 | Image processing (YOLOv8 + LaMa + OCR) | Free — runs locally |
-| Story Intelligence — Call 1 (Vision AI) | ~$0.01–$0.05 per episode (depends on model + panel count) |
-| Script Writing — Call 2 (Text AI) | ~$0.01–$0.03 per episode |
-| Mega Merge (10 episodes) | ~$0.05–$0.20 |
+| Story Intelligence — Call 1 (Vision AI) | ~$0.01–$0.05 per 100 images (depends on model + images count) |
+| Script Writing — Call 2 (Text AI) | ~$0.01–$0.03 per batch |
+| Mega Merge (10 Batchs) | ~$0.05–$0.20 |
 | Voiceover (Edge TTS) | Free — local |
-| CapCut export | Free |
+| Editable export | Free |
 
-A single episode can realistically be produced for **under $0.05** in API spend on the budget tier.
+A single batch process can realistically be produced for **under $0.05** in API spend on the budget tier.
 
 > **Tip:** Use a cheaper model for Call 1 (scene reading) and a better model for Call 2 (script writing needs more creativity).
 
