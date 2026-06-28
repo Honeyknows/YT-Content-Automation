@@ -9,17 +9,15 @@ class CropWindow(ctk.CTkToplevel):
         self.title("Manual Crop Override")
         self.geometry("1000x800")
         self.transient(master.winfo_toplevel())
-        self.grab_set() # Make it modal
+        self.grab_set()
         
         self.session = session
         self.current_index = current_index
         self.on_saved_callback = on_saved_callback
         
-        # Grid setup
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(0, weight=1)
         
-        # Toolbar
         self.toolbar = ctk.CTkFrame(self)
         self.toolbar.grid(row=0, column=0, sticky="ew", padx=10, pady=10)
         
@@ -50,7 +48,6 @@ class CropWindow(ctk.CTkToplevel):
         self.hbar.pack(side="bottom", fill="x")
         self.canvas.pack(side="left", fill="both", expand=True)
         
-        # Crop variables
         self.rect_id = None
         self.start_x = 0
         self.start_y = 0
@@ -58,7 +55,6 @@ class CropWindow(ctk.CTkToplevel):
         self.end_y = 0
         self.scale_factor = 1.0
         
-        # Bind events
         self.canvas.bind("<ButtonPress-1>", self.on_press)
         self.canvas.bind("<B1-Motion>", self.on_drag)
         self.canvas.bind("<ButtonRelease-1>", self.on_release)
@@ -84,7 +80,6 @@ class CropWindow(ctk.CTkToplevel):
         self.canvas.delete("all")
         self.rect_id = None
         
-        # Load image and scale it to fit the window without scrolling
         try:
             self.pil_img = Image.open(self.original_path)
         except Exception as e:
@@ -93,7 +88,6 @@ class CropWindow(ctk.CTkToplevel):
             
         orig_w, orig_h = self.pil_img.size
         
-        # Assume max canvas size of ~950x700
         self.scale_factor = min(950 / orig_w, 700 / orig_h)
         if self.scale_factor > 1: self.scale_factor = 1.0
         
@@ -115,7 +109,6 @@ class CropWindow(ctk.CTkToplevel):
         self.load_current_image()
 
     def on_press(self, event):
-        # Convert window coordinates to canvas coordinates
         self.start_x = self.canvas.canvasx(event.x)
         self.start_y = self.canvas.canvasy(event.y)
         
@@ -135,11 +128,9 @@ class CropWindow(ctk.CTkToplevel):
         self.end_x = self.canvas.canvasx(event.x)
         self.end_y = self.canvas.canvasy(event.y)
         
-        # Ensure coordinates are sorted
         x1, x2 = sorted([self.start_x, self.end_x])
         y1, y2 = sorted([self.start_y, self.end_y])
         
-        # Ensure it's not a tiny accidental click
         if (x2 - x1) > 10 and (y2 - y1) > 10:
             self.start_x, self.end_x = x1, x2
             self.start_y, self.end_y = y1, y2
@@ -171,7 +162,6 @@ class CropWindow(ctk.CTkToplevel):
                 
                 out_base = self.output_path if self.output_path else self.original_path.replace("raw_", "")
                 
-                # Cache buster to ensure UI updates immediately
                 ts = int(time.time() * 1000)
                 if replace:
                     target_output = out_base.replace(".jpg", f"_r{ts}.jpg")

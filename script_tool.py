@@ -19,16 +19,10 @@ import dotenv
 
 dotenv.load_dotenv()
 
-# ---------------------------------------------------------------------------
-# Model defaults (overridden by .env)
-# ---------------------------------------------------------------------------
 OPENROUTER_MODEL_CALL_1 = os.getenv("OPENROUTER_MODEL_CALL_1", "google/gemini-2.5-flash")
 OPENROUTER_MODEL_CALL_2 = os.getenv("OPENROUTER_MODEL_CALL_2", "deepseek/deepseek-v4-flash")
 OPENROUTER_MODEL_STITCH = os.getenv("OPENROUTER_MODEL_STITCH", "deepseek/deepseek-v4-flash")
 
-# ---------------------------------------------------------------------------
-# Prompts
-# ---------------------------------------------------------------------------
 CALL_1_PROMPT = """You are a YT Content automation Story Intelligence Engine. You receive YT Content automation 
 panel images in strict reading order alongside OCR-extracted text.
 Your job is to reconstruct the complete chapter story with maximum 
@@ -397,9 +391,6 @@ RULES:
 Output the transition passage only. Nothing else.
 """
 
-# ---------------------------------------------------------------------------
-# Thread-safety primitives
-# ---------------------------------------------------------------------------
 print_lock = threading.Lock()
 meta_lock = threading.Lock()
 
@@ -409,9 +400,6 @@ def safe_print(msg):
         print(msg)
 
 
-# ---------------------------------------------------------------------------
-# Path helpers
-# ---------------------------------------------------------------------------
 PROJECTS_DIR = Path(os.path.dirname(os.path.abspath(__file__))) / "projects"
 
 
@@ -439,9 +427,6 @@ def get_flag_path(series_id: str, episode_id: str) -> Path:
     return get_export_dir(series_id, episode_id) / "INCOMPLETE.flag"
 
 
-# ---------------------------------------------------------------------------
-# series_meta.json helpers
-# ---------------------------------------------------------------------------
 def get_meta_path(series_id: str) -> Path:
     return get_series_dir(series_id) / "series_meta.json"
 
@@ -483,9 +468,6 @@ def update_meta(series_id: str, episode_id: str, success: bool):
         save_meta(series_id, meta)
 
 
-# ---------------------------------------------------------------------------
-# Session preprocessing (read-only — never writes session.json)
-# ---------------------------------------------------------------------------
 def get_scene_number(scene_id: str) -> int:
     match = re.search(r"scene_(\d+)", scene_id)
     if match:
@@ -548,9 +530,6 @@ def preprocess_session(session_path: Path) -> list:
     return final_list
 
 
-# ---------------------------------------------------------------------------
-# Image encoding
-# ---------------------------------------------------------------------------
 def encode_images(final_list: list) -> list:
     encoded_list = []
     missing = 0
@@ -581,9 +560,6 @@ def encode_images(final_list: list) -> list:
     return encoded_list
 
 
-# ---------------------------------------------------------------------------
-# Utilities
-# ---------------------------------------------------------------------------
 def chunk_list(lst, chunk_size):
     for i in range(0, len(lst), chunk_size):
         yield lst[i: i + chunk_size]
@@ -625,7 +601,6 @@ def merge_story_intel(intel_chunks: list) -> dict:
 
     merged["chapter_complete_summary"] = merged["chapter_complete_summary"].strip()
 
-    # Deduplicate scenes by scene_id — last occurrence wins (later chunk is authoritative)
     seen_ids = {}
     for scene in merged["scenes"]:
         sid = scene.get("scene_id")
@@ -700,9 +675,6 @@ def generate_sync_map(paragraphs: list, scenes: list) -> list:
     return sync_map
 
 
-# ---------------------------------------------------------------------------
-# ProviderManager — owns all LLM calls
-# ---------------------------------------------------------------------------
 class ProviderManager:
     """Each thread must instantiate its OWN ProviderManager. Never share."""
 
@@ -710,7 +682,6 @@ class ProviderManager:
         self.provider_call1 = provider_call1
         self.provider_call2 = provider_call2
 
-    # -- JSON helpers -------------------------------------------------------
     def _force_close_json(self, text):
         text = text.strip()
         start = text.find("{")
@@ -770,7 +741,6 @@ class ProviderManager:
                 pass
         return self._force_close_json(clean_text)
 
-    # -- Call 1 (Story Intelligence) ----------------------------------------
     def execute_call_1(
         self,
         encoded_panels: list,
@@ -788,8 +758,8 @@ class ProviderManager:
             return {}
         from openai import OpenAI
 
-        CHUNK_SIZE = 10          # Fixed chunk size — always 10 images per call
-        MAX_RETRIES = 4          # Retries per chunk on failure
+        CHUNK_SIZE = 10
+        MAX_RETRIES = 4
         results = []
 
         api_key = os.getenv("OPENROUTER_API_KEY")
@@ -799,7 +769,6 @@ class ProviderManager:
         client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
         model_name = os.getenv("OPENROUTER_MODEL_CALL_1", OPENROUTER_MODEL_CALL_1)
 
-        # Load prompt (from prompts.json if present, else default)
         custom_call1 = CALL_1_PROMPT
         if os.path.exists("prompts.json"):
             try:
@@ -840,7 +809,6 @@ class ProviderManager:
             },
         }
 
-        # Build OCR lookup: panel_index -> ocr_text
         ocr_dict = {}
         for line in full_ocr_text_str.split("\n"):
             if line.startswith("Scene "):
@@ -854,12 +822,10 @@ class ProviderManager:
                     except Exception:
                         pass
 
-        # Split panels into fixed-size chunks of 10
         panel_chunks = list(chunk_list(encoded_panels, CHUNK_SIZE))
         total_chunks = len(panel_chunks)
         safe_print(f"[CALL 1] {len(encoded_panels)} panels → {total_chunks} chunks of {CHUNK_SIZE}")
 
-        # Process each chunk sequentially
         for i, chunk in enumerate(panel_chunks):
             start_idx = i * CHUNK_SIZE
             chunk_num = i + 1
@@ -875,7 +841,6 @@ class ProviderManager:
             safe_print(f"  ⏳ [CALL 1] Sending Chunk {chunk_num}/{total_chunks} "
                        f"(panels {start_idx+1}–{start_idx+len(chunk)})...")
 
-            # Build OCR string for this chunk's panels
             chunk_ocr_texts = []
             for j in range(len(chunk)):
                 panel_idx = start_idx + j
@@ -901,7 +866,6 @@ class ProviderManager:
                     "image_url": {"url": f"data:image/jpeg;base64,{panel['base64']}"},
                 })
 
-            # Retry loop for this chunk
             retries_left = MAX_RETRIES
             success = False
 
@@ -946,13 +910,11 @@ class ProviderManager:
                 except Exception as e:
                     err_str = str(e).lower()
 
-                    # Rate-limit: wait and retry without consuming a retry slot
                     if "429" in err_str or "rate limit" in err_str:
                         safe_print(f"[RATE LIMIT] Chunk {chunk_num} — sleeping 10s then retrying.")
                         time.sleep(10)
                         continue
 
-                    # Normal failure: exponential-ish back-off
                     if retries_left > 0:
                         wait_t = [60, 45, 30, 15][MAX_RETRIES - retries_left] \
                                  if (MAX_RETRIES - retries_left) < 4 else 30
@@ -972,7 +934,6 @@ class ProviderManager:
 
         return merge_story_intel(results)
 
-    # -- Call 2 (Script Generation) -----------------------------------------
     def execute_call_2(
         self,
         story_intel: dict,
@@ -990,7 +951,6 @@ class ProviderManager:
         client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
         model_name = os.getenv("OPENROUTER_MODEL_CALL_2", OPENROUTER_MODEL_CALL_2)
 
-        # Load prompt — resolve path relative to this script file, not CWD
         custom_call2 = CALL_2_PROMPT
         prompts_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prompts.json")
         if os.path.exists(prompts_path):
@@ -1008,9 +968,8 @@ class ProviderManager:
         narrative_arc  = story_intel.get("narrative_arc", {})
         chapter_meta   = story_intel.get("chapter_metadata", {})
 
-        CHUNK_SIZE = 13   # scenes per Call-2 sub-call — reliable range for any LLM
+        CHUNK_SIZE = 13
 
-        # Split non-junk scenes into chunks
         chunks = [non_junk[i:i+CHUNK_SIZE] for i in range(0, len(non_junk), CHUNK_SIZE)]
         total_chunks = len(chunks)
 
@@ -1022,7 +981,6 @@ class ProviderManager:
         if progress_callback:
             progress_callback(f"Call 2 — Writing Script (0/{total_chunks} chunks)...")
 
-        # Shared context injected into every chunk call
         shared_context = {
             "character_registry": char_registry,
             "chapter_metadata": chapter_meta,
@@ -1031,8 +989,8 @@ class ProviderManager:
         }
         shared_context_str = json.dumps(shared_context, indent=2, ensure_ascii=False)
 
-        all_paragraphs: list = []   # final list of plain text paragraphs
-        prev_tail = ""              # last ~200 chars of previous chunk output
+        all_paragraphs: list = []
+        prev_tail = ""
 
         MAX_RETRIES = 3
         MAX_RL_HITS = 12
@@ -1044,9 +1002,8 @@ class ProviderManager:
 
             chunk_scenes_str = json.dumps(chunk_scenes, indent=2, ensure_ascii=False)
 
-            # Dynamic word target: 22 words per scene (no ceiling)
             target_words = len(chunk_scenes) * 22
-            floor_words  = int(target_words * 0.4)   # 40% of target is hard floor
+            floor_words  = int(target_words * 0.4)
 
             position_tag = ""
             if is_first:
@@ -1118,14 +1075,12 @@ class ProviderManager:
                         f"temp={temperature} ({len(res_text)} chars): {res_text[:120]!r}"
                     )
 
-                    # ── Reject JSON echo-backs ──────────────────────────────
                     stripped = res_text.lstrip()
                     if stripped.startswith(("{", "[", "```")):
                         raise ValueError(
                             f"Chunk {chunk_num}: output starts with JSON/code — retry."
                         )
 
-                    # ── Length floor check ──────────────────────────────────
                     word_count = len(res_text.split())
                     if word_count < floor_words:
                         safe_print(
@@ -1145,7 +1100,7 @@ class ProviderManager:
                             response.usage.completion_tokens,
                             res_text,
                         )
-                    break   # success
+                    break
 
                 except Exception as e:
                     err_str = str(e).lower()
@@ -1164,7 +1119,7 @@ class ProviderManager:
                     retries -= 1
                     if retries < 0:
                         safe_print(f"[ERROR] Chunk {chunk_num} failed after {MAX_RETRIES} retries: {e}")
-                        chunk_text = ""   # empty — we still continue with remaining chunks
+                        chunk_text = ""
                         break
                     wait_t = [30, 20, 10][retries] if retries < 3 else 15
                     safe_print(
@@ -1173,20 +1128,16 @@ class ProviderManager:
                     )
                     time.sleep(wait_t)
 
-            # ── Collect chunk output ────────────────────────────────────────
             if chunk_text:
                 chunk_paras = [p.strip() for p in chunk_text.split("\n\n") if p.strip()]
                 all_paragraphs.extend(chunk_paras)
-                # carry tail for next chunk continuation
                 prev_tail = chunk_paras[-1][-200:] if chunk_paras else ""
 
             if progress_callback:
                 progress_callback(f"Call 2 — Writing Script ({chunk_num}/{total_chunks} chunks)...")
 
-        # ── Convert to paragraph dicts + post-process ──────────────────────
         final_paragraphs = [{"paragraph": p} for p in all_paragraphs if p]
 
-        # CHAR_XXX replacement
         for p in final_paragraphs:
             text = p.get("paragraph", "")
             if "CHAR_" in text:
@@ -1202,7 +1153,6 @@ class ProviderManager:
                         text = text.replace(m, fallback)
             p["paragraph"] = text
 
-        # Artifact cleanup (markdown remnants, scene labels)
         cleaned_paragraphs = []
         for p in final_paragraphs:
             raw = p.get("paragraph", "")
@@ -1227,7 +1177,6 @@ class ProviderManager:
         )
         return final_paragraphs
 
-    # -- Stitch (Call 3 transition) -----------------------------------------
     def generate_stitch(self, tail: str, head: str) -> str:
         from openai import OpenAI
 
@@ -1235,7 +1184,6 @@ class ProviderManager:
         if not api_key:
             raise ValueError("OPENROUTER_API_KEY is not set.")
 
-        # Thread-local client
         client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
         model_name = os.getenv("OPENROUTER_MODEL_CALL_2", OPENROUTER_MODEL_CALL_2)
 
@@ -1274,9 +1222,6 @@ class ProviderManager:
                 time.sleep(wait_t)
 
 
-# ---------------------------------------------------------------------------
-# Call 1 + 2 per-episode worker (thread-safe)
-# ---------------------------------------------------------------------------
 def process_episode_thread(series_id: str, episode_id: str) -> tuple:
     """
     Runs Call 1 (Story Intelligence) + Call 2 (Script) for one episode.
@@ -1291,7 +1236,6 @@ def process_episode_thread(series_id: str, episode_id: str) -> tuple:
     try:
         safe_print(f"\n[START] {episode_id}")
 
-        # Skip if already complete
         if intel_path.exists() and script_path.exists() and not flag_path.exists():
             safe_print(f"[SKIP] {episode_id} already complete")
             return episode_id, "skipped", None
@@ -1302,7 +1246,6 @@ def process_episode_thread(series_id: str, episode_id: str) -> tuple:
         if not session_path.exists():
             raise FileNotFoundError(f"session.json not found at {session_path}")
 
-        # Load + encode
         safe_print(f"[{episode_id}] Loading session.json")
         final_list = preprocess_session(session_path)
         if not final_list:
@@ -1315,7 +1258,6 @@ def process_episode_thread(series_id: str, episode_id: str) -> tuple:
             sess_data = json.load(f)
         source_url = sess_data[0].get("source_url", "") if sess_data else ""
 
-        # Build OCR string
         full_ocr_texts = []
         for panel in sess_data:
             if panel.get("ocr_text"):
@@ -1329,17 +1271,14 @@ def process_episode_thread(series_id: str, episode_id: str) -> tuple:
                 )
         full_ocr_str = "\n".join(full_ocr_texts)
 
-        # Thread-local ProviderManager — critical for thread safety
         pm = ProviderManager()
 
-        # Call 1
         safe_print(f"[{episode_id}] Running Call 1 — Story Intelligence")
         story_intel = pm.execute_call_1(encoded_panels, source_url, full_ocr_str)
 
         with open(intel_path, "w", encoding="utf-8") as f:
             json.dump(story_intel, f, indent=2, ensure_ascii=False)
 
-        # Validate scene coverage
         panel_count = len(encoded_panels)
         scene_count = len(story_intel.get("scenes", []))
         if scene_count < panel_count * 0.7:
@@ -1349,7 +1288,6 @@ def process_episode_thread(series_id: str, episode_id: str) -> tuple:
             )
             safe_print(f"[WARN] {episode_id}: only {scene_count}/{panel_count} scenes. INCOMPLETE.flag written.")
 
-        # Call 2
         safe_print(f"[{episode_id}] Running Call 2 — Script Generation")
 
         def _cli_usage_cb(prompt_tok, comp_tok, _text):
@@ -1368,7 +1306,6 @@ def process_episode_thread(series_id: str, episode_id: str) -> tuple:
         with open(script_path, "w", encoding="utf-8") as f:
             f.write(script_text)
 
-        # Generate sync map
         try:
             sync_map = generate_sync_map(raw_paragraphs, story_intel.get("scenes", []))
             sync_path = export_dir / "script_sync.json"
@@ -1377,7 +1314,6 @@ def process_episode_thread(series_id: str, episode_id: str) -> tuple:
         except Exception as e:
             safe_print(f"[WARN] {episode_id}: Failed to generate sync map: {e}")
 
-        # Clear INCOMPLETE flag if both files are now good
         if flag_path.exists() and intel_path.exists() and script_path.exists():
             if scene_count >= panel_count * 0.7:
                 flag_path.unlink(missing_ok=True)
@@ -1426,9 +1362,6 @@ def process_all_episodes(series_id: str, episode_ids: list, max_workers: int = 3
     return results
 
 
-# ---------------------------------------------------------------------------
-# Call 3 — Sequential Stitch Assembly
-# ---------------------------------------------------------------------------
 def _word_positions(text: str):
     """Return list of (start, end) for each whitespace-delimited word."""
     return [(m.start(), m.end()) for m in re.finditer(r'\S+', text)]
@@ -1470,7 +1403,6 @@ def load_script_text(series_id: str, episode_id: str) -> str:
     return content
 
 
-# Keep old name as alias so any external callers don't break
 def load_script_words(series_id: str, episode_id: str) -> list:
     return load_script_text(series_id, episode_id).split()
 
@@ -1490,9 +1422,8 @@ def stitch_and_build(
     throughout the final output. Supports resume from checkpoint files.
     """
     n = len(episode_ids)
-    SEAM_WORDS = 100   # words taken from each side for stitch context
+    SEAM_WORDS = 100
 
-    # -- Resume detection --
     latest_checkpoint = None
     latest_checkpoint_index = 0
 
@@ -1512,7 +1443,6 @@ def stitch_and_build(
             safe_print(f"[LOAD] {episode_ids[i]}")
             text_list[i] = load_script_text(series_id, episode_ids[i])
     else:
-        # Load ALL scripts first to catch missing files early
         text_list = {}
         total_words = 0
         for i, ep_id in enumerate(episode_ids):
@@ -1526,13 +1456,11 @@ def stitch_and_build(
         working_text = text_list[0]
         start_index = 1
 
-    # -- Sequential stitch loop --
     for i in range(start_index, n):
         next_text = text_list[i]
         working_wc = len(working_text.split())
         len(next_text.split())
 
-        # Extract context words for the LLM stitch call (plain space-joined)
         tail_text = " ".join(working_text.split()[-SEAM_WORDS:])
         head_text = " ".join(next_text.split()[:SEAM_WORDS])
 
@@ -1550,20 +1478,16 @@ def stitch_and_build(
             safe_print(f"[WARN] Stitch {i} too long ({stitch_wc} words). Trimming to 200.")
             stitch_text = " ".join(stitch_text.split()[:200])
 
-        # Trim tail/head from texts, preserving internal paragraph structure
         trimmed_working = _trim_last_n_words(working_text, SEAM_WORDS)
         trimmed_next    = _trim_first_n_words(next_text,   SEAM_WORDS)
 
-        # Join with double newline so stitch paragraph sits cleanly between them
         working_text = trimmed_working + "\n\n" + stitch_text + "\n\n" + trimmed_next
 
-        # Checkpoint every 10 iterations (save full text, not word list)
         if i % 10 == 0:
             checkpoint_path = output_path.parent / f"checkpoint_{i}.txt"
             checkpoint_path.write_text(working_text, encoding="utf-8")
             safe_print(f"[CHECKPOINT] Saved at iteration {i}")
 
-    # -- Write final output --
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(working_text, encoding="utf-8")
 
@@ -1574,12 +1498,10 @@ def stitch_and_build(
         f"Saved: {output_path}"
     )
 
-    # Update meta
     meta = load_meta(series_id)
     meta["final_script_built"] = True
     save_meta(series_id, meta)
 
-    # Clean up checkpoints
     for ci in range(10, n, 10):
         cp = output_path.parent / f"checkpoint_{ci}.txt"
         cp.unlink(missing_ok=True)
@@ -1587,9 +1509,6 @@ def stitch_and_build(
     return working_text
 
 
-# ---------------------------------------------------------------------------
-# Episode discovery helpers
-# ---------------------------------------------------------------------------
 def discover_episodes(series_dir: Path, from_ep: str = None, to_ep: str = None) -> list:
     """Returns sorted list of episode_id strings (e.g. ['ep_001', 'ep_002', ...])"""
     episode_ids = []
@@ -1617,25 +1536,18 @@ def discover_episodes(series_dir: Path, from_ep: str = None, to_ep: str = None) 
     return episode_ids
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(description="YT Content automation Recap Script Tool")
     
-    # Mode flags
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--process", action="store_true", help="Run Call 1 + Call 2 per episode")
     mode.add_argument("--stitch", action="store_true", help="Run Call 3 sequential stitch assembly")
     
-    # Common
     parser.add_argument("--project", required=True, help="Series ID, e.g. fog-land_9299")
     parser.add_argument("--workers", type=int, default=3, help="Max parallel workers (--process only)")
     
-    # --process options
     parser.add_argument("--episode", help="Single episode to process, e.g. ep_024")
     
-    # --stitch options
     parser.add_argument("--from", dest="from_ep", help="Start stitch from this episode, e.g. ep_010")
     parser.add_argument("--to", dest="to_ep", help="End stitch at this episode, e.g. ep_030")
 
@@ -1648,7 +1560,6 @@ def main():
         print(f"[ERROR] Series directory not found: {series_dir}")
         sys.exit(1)
 
-    # ── --process ─────────────────────────────────────────────────────────
     if args.process:
         if args.episode:
             episode_ids = [args.episode]
@@ -1661,7 +1572,6 @@ def main():
         print(f"[PROCESS] Series: {series_id} | Episodes: {len(episode_ids)} | Workers: {args.workers}")
         process_all_episodes(series_id, episode_ids, max_workers=args.workers)
 
-    # ── --stitch ──────────────────────────────────────────────────────────
     elif args.stitch:
         episode_ids = discover_episodes(series_dir, from_ep=args.from_ep, to_ep=args.to_ep)
         if len(episode_ids) < 2:

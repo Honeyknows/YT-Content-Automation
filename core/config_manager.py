@@ -18,7 +18,6 @@ def load_config():
     try:
         with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            # Ensure all keys exist
             for k, v in DEFAULT_CONFIG.items():
                 if k not in data:
                     data[k] = v

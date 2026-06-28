@@ -38,7 +38,6 @@ from dotenv import load_dotenv, set_key
 import urllib.request
 import urllib.error
 
-# ── Paths ─────────────────────────────────────────────────────────────────────
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _PROJECTS_DIR = os.path.join(_BASE_DIR, "projects")
 _ENV_PATH = os.path.join(_BASE_DIR, ".env")
@@ -48,7 +47,6 @@ sys.path.insert(0, _BASE_DIR)
 
 import script_tool
 
-# Cost per 1M tokens (input, output) — rough estimates
 _COST_TABLE = {
     "gemini": (0.075, 0.30),
     "groq": (0.59, 0.79),
@@ -56,10 +54,9 @@ _COST_TABLE = {
     "anthropic": (3.00, 15.00),
     "openrouter": (0.15, 0.60),
 }
-_IMG_TOKENS = 258  # average tokens per image for cost estimate
+_IMG_TOKENS = 258
 
 
-# ── Stdout redirector ─────────────────────────────────────────────────────────
 class _Redirector:
     def __init__(self, q: queue.Queue):
         self._q = q
@@ -72,7 +69,6 @@ class _Redirector:
         pass
 
 
-# ── ScriptDashboard ───────────────────────────────────────────────────────────
 class ModelSelectionPopup(ctk.CTkToplevel):
     def __init__(self, master, models, call_num):
         super().__init__(master)
@@ -83,7 +79,6 @@ class ModelSelectionPopup(ctk.CTkToplevel):
         self.parent = master
         self.transient(master)
 
-        # Top bar with Search and Filters
         top_frame = ctk.CTkFrame(self, fg_color="transparent")
         top_frame.pack(fill="x", padx=10, pady=10)
         
@@ -97,11 +92,9 @@ class ModelSelectionPopup(ctk.CTkToplevel):
         self.uncensored_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(top_frame, text="Uncensored", variable=self.uncensored_var, command=self.filter_models).pack(side="left", padx=5)
 
-        # Scrollable list
         self.scroll = ctk.CTkScrollableFrame(self)
         self.scroll.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 
-        # Recommended models
         self.recommended = ["google/gemini-2.5-flash", "meta-llama/llama-3.2-11b-vision-instruct", "meta-llama/llama-3.3-70b-instruct", "anthropic/claude-3-haiku"]
 
         self.filter_models()
@@ -132,7 +125,6 @@ class ModelSelectionPopup(ctk.CTkToplevel):
             if uncensored_only and "uncensored" not in m_id and "uncensored" not in m_name:
                 continue
 
-            # Prioritize recommended
             is_rec = m.get("id") in self.recommended
             
             arch = m.get('architecture', {})
@@ -141,7 +133,6 @@ class ModelSelectionPopup(ctk.CTkToplevel):
                 if 'image' in str(arch.get('modality', '')).lower() or 'image' in arch.get('input_modalities', []):
                     supports_vision = True
             
-            # If this is Call 1, ONLY show models that support vision
             if self.call_num == 1 and not supports_vision:
                 continue
 
@@ -154,7 +145,6 @@ class ModelSelectionPopup(ctk.CTkToplevel):
                 "vision": supports_vision
             })
 
-        # Sort: Recommended first, then free, then alphabetically
         filtered.sort(key=lambda x: (not x["is_rec"], not x["is_free"], x["id"]))
 
         for item in filtered:
@@ -193,7 +183,6 @@ class ModelSelectionPopup(ctk.CTkToplevel):
         self.destroy()
 
 
-
 class ScriptDashboard(ctk.CTkFrame):
 
     def __init__(self, master, on_back_callback=None):
@@ -207,18 +196,15 @@ class ScriptDashboard(ctk.CTkFrame):
         self._original_stdout = sys.stdout
         self._env_path = os.path.join(os.getcwd(), ".env")
 
-        # running counters
         self._total_panels = 0
         self._total_words = 0
         self._total_retries = 0
         self._total_cost = 0.0
 
-        # voiceover
         self._vo_voice = "en-US-ChristopherNeural"
         self._vo_rate = "+0%"
         self._vo_pitch = "+0Hz"
 
-        # 3-column layout (Left 25%, Center 25%, Right 50%)
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
         self.grid_columnconfigure(2, weight=2)
@@ -272,9 +258,6 @@ class ScriptDashboard(ctk.CTkFrame):
         
         threading.Thread(target=_fetch, daemon=True).start()
 
-    # =========================================================================
-    # LEFT PANEL — controls, series/episode selector, API keys
-    # =========================================================================
     def _build_left(self):
         lf = ctk.CTkScrollableFrame(self)
         lf.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
@@ -292,7 +275,6 @@ class ScriptDashboard(ctk.CTkFrame):
             command=self.on_back_callback,
         ).pack(fill="x", padx=10, pady=(0, 10))
 
-        # ── API Balance Check ────────────────────────────────────────────────
         bal_row = ctk.CTkFrame(lf, fg_color="transparent")
         bal_row.pack(fill="x", padx=10, pady=(0, 10))
         
@@ -310,7 +292,6 @@ class ScriptDashboard(ctk.CTkFrame):
             command=self._check_api_balance
         ).pack(side="right")
 
-        # ── Model Selection (OpenRouter) ──────────────────────────────────────
         model_row = ctk.CTkFrame(lf, fg_color="transparent")
         model_row.pack(fill="x", padx=10, pady=(2, 10))
 
@@ -342,7 +323,6 @@ class ScriptDashboard(ctk.CTkFrame):
         
         threading.Thread(target=self._fetch_openrouter_models, daemon=True).start()
 
-        # ── Series selector ───────────────────────────────────────────────────
         ctk.CTkLabel(lf, text="Series:").pack(anchor="w", padx=10)
         self._series_var = ctk.StringVar(value="")
         self._series_menu = ctk.CTkOptionMenu(
@@ -359,13 +339,11 @@ class ScriptDashboard(ctk.CTkFrame):
             ref_row, text="⟳ Refresh Series", width=130, command=self._refresh_series
         ).pack(side="left")
 
-        # ── Episode list ──────────────────────────────────────────────────────
         ctk.CTkLabel(lf, text="Episodes:").pack(anchor="w", padx=10)
         self._ep_scroll = ctk.CTkScrollableFrame(lf, height=200)
         self._ep_scroll.pack(fill="x", padx=10, pady=(2, 8))
         self._ep_vars: dict[str, ctk.BooleanVar] = {}
 
-        # ── Action buttons ────────────────────────────────────────────────────
         self._gen_btn = ctk.CTkButton(
             lf,
             text="▶  Generate Story Intel (Call 1)",
@@ -442,7 +420,6 @@ class ScriptDashboard(ctk.CTkFrame):
         )
         self._reset_ui_btn.pack(fill="x", padx=10, pady=(2, 12))
 
-        # ── Edit Prompts ──────────────────────────────────────────────────────
         self._prompts_btn = ctk.CTkButton(
             lf,
             text="📝  Edit AI Prompts",
@@ -454,10 +431,8 @@ class ScriptDashboard(ctk.CTkFrame):
         )
         self._prompts_btn.pack(fill="x", padx=10, pady=(2, 12))
 
-        # ── Divider ───────────────────────────────────────────────────────────
         ctk.CTkLabel(lf, text="─" * 40, text_color="gray").pack(fill="x", padx=10)
 
-        # ── API Key Manager ───────────────────────────────────────────────────
         ctk.CTkLabel(
             lf, text="API Key Manager", font=ctk.CTkFont(size=14, weight="bold")
         ).pack(anchor="w", padx=10, pady=(10, 4))
@@ -503,9 +478,6 @@ class ScriptDashboard(ctk.CTkFrame):
                     command=lambda p=prov, e=ent, b=save_btn: self._toggle_key(p, e, b),
                 )
 
-    # =========================================================================
-    # MIDDLE PANEL — Live Command Center
-    # =========================================================================
     def _build_middle(self):
         mf = ctk.CTkFrame(self)
         mf.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
@@ -513,7 +485,6 @@ class ScriptDashboard(ctk.CTkFrame):
         mf.grid_rowconfigure(4, weight=2)
         mf.grid_columnconfigure(0, weight=1)
 
-        # ── Stats block ───────────────────────────────────────────────────────
         stats = ctk.CTkFrame(mf)
         stats.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
         stats.grid_columnconfigure((0, 1, 2, 3), weight=1)
@@ -547,13 +518,11 @@ class ScriptDashboard(ctk.CTkFrame):
         )
         self._prog.set(0)
 
-        # ── Episode status ────────────────────────────────────────────────────
         self._ep_status_label = ctk.CTkLabel(
             stats, text="", font=ctk.CTkFont(size=12), text_color="#aaaaaa"
         )
         self._ep_status_label.grid(row=6, column=0, columnspan=4, pady=(0, 10))
 
-        # ── Error Alerts ──────────────────────────────────────────────────────
         ctk.CTkLabel(
             mf,
             text="⚠ Error Alerts & Retries:",
@@ -570,7 +539,6 @@ class ScriptDashboard(ctk.CTkFrame):
         )
         self._err_box.grid(row=2, column=0, padx=10, pady=(0, 6), sticky="nsew")
 
-        # ── Terminal Log ──────────────────────────────────────────────────────
         ctk.CTkLabel(
             mf, text="Standard Terminal Logs:", font=ctk.CTkFont(weight="bold")
         ).grid(row=3, column=0, sticky="sw", padx=10)
@@ -578,9 +546,6 @@ class ScriptDashboard(ctk.CTkFrame):
         self._log_box = ctk.CTkTextbox(mf, state="disabled", font=("Consolas", 12))
         self._log_box.grid(row=4, column=0, padx=10, pady=(0, 10), sticky="nsew")
 
-    # =========================================================================
-    # RIGHT PANEL — Output Review
-    # =========================================================================
     def _build_right(self):
         rf = ctk.CTkFrame(self)
         rf.grid(row=0, column=2, padx=10, pady=10, sticky="nsew")
@@ -627,9 +592,6 @@ class ScriptDashboard(ctk.CTkFrame):
         )
         self._script_box.grid(row=4, column=0, padx=10, pady=(0, 10), sticky="nsew")
 
-    # =========================================================================
-    # Series / Episode helpers
-    # =========================================================================
     def _get_series(self) -> list[str]:
         if not os.path.exists(_PROJECTS_DIR):
             return []
@@ -689,7 +651,6 @@ class ScriptDashboard(ctk.CTkFrame):
             ctk.CTkLabel(self._ep_scroll, text="No episodes found").pack(pady=10)
             return
 
-        # Select All / None / Pending row
         sr = ctk.CTkFrame(self._ep_scroll, fg_color="transparent")
         sr.pack(fill="x", pady=(0, 4))
         ctk.CTkButton(
@@ -805,9 +766,6 @@ class ScriptDashboard(ctk.CTkFrame):
     def _selected_eps(self) -> list[str]:
         return [ep for ep, v in self._ep_vars.items() if v.get()]
 
-    # =========================================================================
-    # Generation (Call 1 + Call 2 per episode)
-    # =========================================================================
 
     def _fetch_openrouter_models(self):
         try:
@@ -862,18 +820,13 @@ class ScriptDashboard(ctk.CTkFrame):
                         total_panels += len(sess)
                 except: pass
                 
-        # Call 1 Input = Images (258 tokens each) + OCR text (~150 tokens per panel)
-        # Call 1 Output = JSON (~60 tokens per panel)
         c1_est_cost = (total_panels * (258 + 150) * in_c1) + (total_panels * 60 * out_c1)
         
-        # Call 2 Input = JSON Intel (~100 tokens per panel)
-        # Call 2 Output = Script Narration (~30 tokens per panel)
         c2_est_cost = (total_panels * 100 * in_c2) + (total_panels * 30 * out_c2)
 
         cost = c1_est_cost + c2_est_cost
         self._stat_precost.configure(text=f"${cost:.4f}")
 
-        # Dynamic Button Enabling
         has_intel = False
         has_script = False
         for ep in episodes:
@@ -945,7 +898,6 @@ class ScriptDashboard(ctk.CTkFrame):
 
         last_intel_path = None
 
-        # ── per-episode worker ─────────────────────────────────────────────
         def _process_one(ep_index, ep):
             if self._cancel.is_set():
                 return ep, None, "cancelled", 0, 0
@@ -1046,7 +998,6 @@ class ScriptDashboard(ctk.CTkFrame):
                         print(f"  ❌ {ep} — failed after {MAX_ATTEMPTS} attempts")
                         return ep, None, "failed", 0, 0
 
-        # ── run 2 episodes in parallel ─────────────────────────────────────
         try:
             with ThreadPoolExecutor(max_workers=2) as executor:
                 futures = {
@@ -1056,7 +1007,6 @@ class ScriptDashboard(ctk.CTkFrame):
                 for future in as_completed(futures):
                     ep, intel_path, status, scenes, panels = future.result()
                     self._done_count += 1
-                    # Print summary line for completed episode
                     icon = "✅" if status == "success" else ("⏭" if status == "skipped" else "❌")
                     print(f"\n{'═'*50}")
                     print(f"{icon} [{status.upper()}] {ep} | scenes={scenes} | "
@@ -1093,10 +1043,6 @@ class ScriptDashboard(ctk.CTkFrame):
             sys.stdout = self._original_stdout
 
 
-
-    # =========================================================================
-    # Merge episode scripts
-    # =========================================================================
     def _start_scripts(self):
         if self._is_processing:
             return
@@ -1146,7 +1092,6 @@ class ScriptDashboard(ctk.CTkFrame):
                 print(f"[STATS] words={self._total_words}")
                 print(f"[STATS] cost={self._total_cost:.5f}")
 
-            # Use the checkbox-selected episodes passed from _start_scripts
             paths = []
 
             self._current_merge_total = len(episodes)
@@ -1167,7 +1112,6 @@ class ScriptDashboard(ctk.CTkFrame):
                     try:
                         with open(path, "r", encoding="utf-8") as f:
                             head = f.read(200).lstrip()
-                        # Corrupt if it looks like raw JSON or a markdown code block
                         if head.startswith(("{", "[", "```")):
                             print(f"[WARN] {ep}: script.txt contains raw JSON — treating as corrupt, re-running Call 2.")
                             os.remove(path)
@@ -1233,7 +1177,6 @@ class ScriptDashboard(ctk.CTkFrame):
 
             self._q.put({"type": "progress_base", "val": 1.0})
             
-            # Show the last generated script in the UI
             with open(paths[-1], "r", encoding="utf-8") as f:
                 last_script = f.read()
                 
@@ -1339,9 +1282,6 @@ class ScriptDashboard(ctk.CTkFrame):
         finally:
             sys.stdout = self._original_stdout
 
-    # =========================================================================
-    # Voiceover
-    # =========================================================================
     def _start_voiceover(self):
         script_text = self._script_box.get("1.0", "end").strip()
         if not script_text:
@@ -1407,9 +1347,6 @@ class ScriptDashboard(ctk.CTkFrame):
         finally:
             sys.stdout = self._original_stdout
 
-    # =========================================================================
-    # Load Saved Script & Prompts dialog
-    # =========================================================================
     def _open_prompt_editor(self):
         try:
             from ui.prompt_editor import PromptEditorWindow
@@ -1467,7 +1404,6 @@ class ScriptDashboard(ctk.CTkFrame):
         self._current_view_series = series_name
         self._current_view_ep = "FULL_SERIES"
         
-        # Disable save button because it's a concatenated view
         if hasattr(self, '_save_intel_btn'):
             self._save_intel_btn.configure(state="disabled", fg_color="gray")
             
@@ -1512,9 +1448,6 @@ class ScriptDashboard(ctk.CTkFrame):
         self._current_intel_original_text = self._intel_box.get("1.0", "end-1c")
         self._script_box.configure(state="disabled")
 
-    # =========================================================================
-    # API Key Manager
-    # =========================================================================
     def _toggle_key(self, prov: str, entry: ctk.CTkEntry, btn: ctk.CTkButton):
         if btn.cget("text") == "Edit":
             entry.configure(state="normal")
@@ -1617,9 +1550,6 @@ class ScriptDashboard(ctk.CTkFrame):
 
         threading.Thread(target=_run, daemon=True).start()
 
-    # =========================================================================
-    # Voiceover Settings
-    # =========================================================================
     def _open_vo_settings(self):
         win = ctk.CTkToplevel(self)
         win.title("Voiceover Settings")
@@ -1680,9 +1610,6 @@ class ScriptDashboard(ctk.CTkFrame):
 
         ctk.CTkButton(win, text="Save Settings", height=38, command=_save).pack(pady=16)
 
-    # =========================================================================
-    # Processing state helpers
-    # =========================================================================
     def _set_processing(self, state: bool):
         self._is_processing = state
         self._cancel.clear()
@@ -1743,11 +1670,7 @@ class ScriptDashboard(ctk.CTkFrame):
             box.delete("1.0", "end")
             box.configure(state="disabled")
 
-    # =========================================================================
-    # Queue tick — called every 100 ms
-    # =========================================================================
     def _tick(self):
-        # Elapsed timer
         if self._is_processing and self._start_time:
             m, s = divmod(int(time.time() - self._start_time), 60)
             self._stat_time.configure(text=f"{m:02d}:{s:02d}")
@@ -1831,7 +1754,6 @@ class ScriptDashboard(ctk.CTkFrame):
                         with open(item["script_path"], "r", encoding="utf-8") as f:
                             self._set_box(self._script_box, f.read())
 
-                    # Refresh episode status checkboxes
                     self._on_series_change(self._series_var.get())
 
                 elif t == "error":
@@ -1849,9 +1771,6 @@ class ScriptDashboard(ctk.CTkFrame):
 
         self.after(100, self._tick)
 
-    # =========================================================================
-    # UI helpers
-    # =========================================================================
     def _append(self, box: ctk.CTkTextbox, msg: str):
         box.configure(state="normal")
         box.insert("end", msg + "\n")

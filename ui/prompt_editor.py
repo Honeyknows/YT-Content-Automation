@@ -15,20 +15,16 @@ class PromptEditorWindow(ctk.CTkToplevel):
         self.geometry("900x700")
         self.minsize(600, 500)
         
-        # Force window to stay on top of main window and grab focus
         if master:
             self.transient(master)
         self.grab_set()
         self.focus_force()
         
-        # Load existing prompts
         self.prompts = self._load_prompts()
         
-        # Main container
         self.main_frame = ctk.CTkFrame(self)
         self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Tabs for different prompts
         self.tabview = ctk.CTkTabview(self.main_frame)
         self.tabview.pack(fill="both", expand=True, padx=5, pady=5)
         
@@ -36,7 +32,6 @@ class PromptEditorWindow(ctk.CTkToplevel):
         self.tab_call2 = self.tabview.add("Call 2 (Script Writer)")
         self.tab_stitch = self.tabview.add("Stitch (Sequential)")
         
-        # Textboxes
         self.textbox_call1 = ctk.CTkTextbox(self.tab_call1, wrap="word", font=("Consolas", 12))
         self.textbox_call1.pack(fill="both", expand=True, padx=5, pady=5)
         self.textbox_call1.insert("0.0", self.prompts.get("CALL_1_PROMPT", DEFAULT_CALL_1))
@@ -49,7 +44,6 @@ class PromptEditorWindow(ctk.CTkToplevel):
         self.textbox_stitch.pack(fill="both", expand=True, padx=5, pady=5)
         self.textbox_stitch.insert("0.0", self.prompts.get("STITCH_PROMPT", DEFAULT_STITCH))
         
-        # Buttons frame
         self.btn_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         self.btn_frame.pack(fill="x", padx=5, pady=5)
         

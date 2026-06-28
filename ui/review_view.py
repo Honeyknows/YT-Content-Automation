@@ -6,7 +6,6 @@ from core.exporter import Exporter
 from ui.crop_window import CropWindow
 from concurrent.futures import ThreadPoolExecutor
 
-# Create a global thread pool for loading thumbnails so we don't spawn 100 threads at once
 _thumb_loader_pool = ThreadPoolExecutor(max_workers=4)
 
 class ExportConfigWindow(ctk.CTkToplevel):
@@ -63,10 +62,9 @@ class SceneCard(ctk.CTkFrame):
         self.index = index
         self.callbacks = callbacks
         
-        self.grid_columnconfigure(0, weight=0) # Image
-        self.grid_columnconfigure(1, weight=1) # Info
+        self.grid_columnconfigure(0, weight=0)
+        self.grid_columnconfigure(1, weight=1)
         
-        # Cleaned Image - larger size
         self.clean_img_label = ctk.CTkLabel(self, text="Loading...", width=400, height=550)
         self.clean_img_label.grid(row=0, column=0, padx=20, pady=20, sticky="n")
         
@@ -78,7 +76,6 @@ class SceneCard(ctk.CTkFrame):
                         clean_img.thumbnail((400, 550))
                         img_copy = clean_img.copy()
                     
-                    # MUST create CTkImage and update label on the main thread!
                     def _safe_update(img=img_copy):
                         try:
                             if self.clean_img_label.winfo_exists():
@@ -91,21 +88,17 @@ class SceneCard(ctk.CTkFrame):
             except Exception as e:
                 print(f"Error in load_thumb: {e}")
                 
-        # Submit to thread pool instead of spawning a new raw thread
         _thumb_loader_pool.submit(load_thumb)
         
-        # Column 1: Info & Controls
         self.info_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.info_frame.grid(row=0, column=1, sticky="nw", padx=20, pady=20)
             
-        # Metadata
         self.id_label = ctk.CTkLabel(self.info_frame, text=f"Scene ID: {scene_data.get('scene_id')}", font=ctk.CTkFont(weight="bold", size=18))
         self.id_label.pack(anchor="w", pady=(0, 5))
         
         self.status_label = ctk.CTkLabel(self.info_frame, text="", font=ctk.CTkFont(size=14))
         self.status_label.pack(anchor="w", pady=(0, 20))
         
-        # Controls in a 2x2 Grid
         self.btn_frame = ctk.CTkFrame(self.info_frame, fg_color="transparent")
         self.btn_frame.pack(anchor="w")
         
@@ -123,7 +116,6 @@ class SceneCard(ctk.CTkFrame):
         self.down_btn.grid(row=1, column=1, padx=10, pady=10)
         
                 
-                        
         self.update_ui()
         
     def update_ui(self):
@@ -156,18 +148,15 @@ class ReviewView(ctk.CTkFrame):
         
         self.grid_columnconfigure(0, weight=1)
         
-        # Pagination variables
         self.current_page = 0
         self.items_per_page = 50
         
-        # --- Stats Frame ---
         self.stats_frame = ctk.CTkFrame(self, height=30, fg_color="transparent")
         self.stats_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(5, 0))
         
         self.stats_label = ctk.CTkLabel(self.stats_frame, text="CPU: 0% | RAM: 0% | GPU: N/A | Total Images: 0 | Total Flagged: 0", font=ctk.CTkFont(size=12, weight="bold"))
         self.stats_label.pack(side="right")
         
-        # --- Toolbar ---
         self.toolbar = ctk.CTkFrame(self)
         self.toolbar.grid(row=1, column=0, sticky="ew", padx=10, pady=5)
         
@@ -203,7 +192,6 @@ class ReviewView(ctk.CTkFrame):
         self.bulk_del_btn = ctk.CTkButton(self.toolbar, text="Delete All Flagged", fg_color="red", hover_color="darkred", command=self.delete_flagged)
         self.bulk_del_btn.pack(side="right", padx=10, pady=10)
         
-        # --- Animation Settings ---
         self.anim_frame = ctk.CTkFrame(self)
         self.anim_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
         
@@ -224,7 +212,6 @@ class ReviewView(ctk.CTkFrame):
             
         self.toggle_motion_cbs()
         
-        # --- Pagination Frame ---
         self.pagination_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.pagination_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=5)
         
@@ -237,7 +224,6 @@ class ReviewView(ctk.CTkFrame):
         self.next_page_btn = ctk.CTkButton(self.pagination_frame, text="Next Page >", width=120, command=self.next_page)
         self.next_page_btn.pack(side="right", padx=10)
         
-        # --- Scrollable List ---
         self.scroll_frame = ctk.CTkScrollableFrame(self)
         self.scroll_frame.grid(row=4, column=0, sticky="nsew", padx=10, pady=(5, 10))
         self.grid_rowconfigure(4, weight=1)
@@ -247,7 +233,6 @@ class ReviewView(ctk.CTkFrame):
 
     def update_stats_loop(self):
         try:
-            # Guard: stop loop if widget is destroyed
             if not self.winfo_exists():
                 return
                 
@@ -274,7 +259,6 @@ class ReviewView(ctk.CTkFrame):
         except Exception:
             pass
             
-        # Only reschedule if widget still alive
         try:
             if self.winfo_exists():
                 self.after(2000, self.update_stats_loop)
@@ -325,8 +309,6 @@ class ReviewView(ctk.CTkFrame):
         
         scenes_to_show = scenes[start_idx:end_idx]
         
-        # FIX: Tkinter Canvas has a maximum height limit of 32,767 pixels on Windows.
-        # Solution: Use a multi-column grid AND pagination to keep total height under the limit safely.
         num_columns = 2
         
         for i, scene in enumerate(scenes_to_show):
@@ -336,7 +318,6 @@ class ReviewView(ctk.CTkFrame):
             col = i % num_columns
             card.grid(row=row, column=col, sticky="nsew", padx=10, pady=10)
             
-        # Ensure columns have equal weight
         for c in range(num_columns):
             self.scroll_frame.grid_columnconfigure(c, weight=1)
             
@@ -413,7 +394,6 @@ class ReviewView(ctk.CTkFrame):
             return
             
         try:
-            # 1. Merge cleaned images
             img1 = cv2.imread(img1_path)
             img2 = cv2.imread(img2_path)
             
@@ -423,7 +403,6 @@ class ReviewView(ctk.CTkFrame):
                 merged_img = np.vstack((img1, img2))
                 cv2.imwrite(img1_path, merged_img)
                 
-            # 2. Merge raw images
             raw1_path = current_scene.get("image_path")
             raw2_path = next_scene.get("image_path")
             
@@ -436,18 +415,15 @@ class ReviewView(ctk.CTkFrame):
                     merged_raw = np.vstack((raw1, raw2))
                     cv2.imwrite(raw1_path, merged_raw)
                     
-            # 3. Combine scripts if they exist
             script1 = current_scene.get("script", "")
             script2 = next_scene.get("script", "")
             combined_script = f"{script1}\n{script2}".strip()
             if combined_script:
                 current_scene["script"] = combined_script
                 
-            # 4. Remove next scene and save
             scenes.pop(index + 1)
             self.session.save()
             
-            # Refresh UI
             self.refresh_list()
         except Exception as e:
             print(f"Error merging panels: {e}")
@@ -472,7 +448,6 @@ class ReviewView(ctk.CTkFrame):
             messagebox.showerror("Re-Inpaint", "No cleaned image path stored for this panel.")
             return
 
-        # Find the card widget and disable its button while processing
         target_card = None
         for widget in self.scroll_frame.winfo_children():
             if isinstance(widget, SceneCard) and widget.index == index:
@@ -487,7 +462,6 @@ class ReviewView(ctk.CTkFrame):
                 from core.processor import Processor
                 p = Processor()
                 
-                # Fetch upscale setting from the main app
                 upscale_setting = False
                 if hasattr(self.winfo_toplevel(), "current_upscale"):
                     upscale_setting = self.winfo_toplevel().current_upscale
@@ -502,7 +476,6 @@ class ReviewView(ctk.CTkFrame):
                 def _done():
                     if target_card and target_card.winfo_exists():
                         target_card.reinpaint_btn.configure(state="normal", text="🔄 Re-Inpaint")
-                        # Reload thumbnail
                         try:
                             with Image.open(clean_path) as img:
                                 img.thumbnail((400, 550))
@@ -525,29 +498,23 @@ class ReviewView(ctk.CTkFrame):
         threading.Thread(target=_run, daemon=True).start()
 
     def replace_crop(self, index):
-        # Open crop window
         self.session.get_all_scenes()[index]
         
         def on_crop_saved(idx, new_data, replace=True):
             if replace:
                 self.session.update_scene(idx, new_data)
             else:
-                # We are extracting a new sub-panel!
-                # We need to create a complete scene dictionary
                 import copy
                 import time
                 parent_scene = self.session.get_all_scenes()[idx]
                 new_scene = copy.deepcopy(parent_scene)
                 
-                # Update with the new cropped data
                 new_scene.update(new_data)
                 
-                # Mark as sub-panel and link parent
                 new_scene["scene_id"] = f"{parent_scene['scene_id']}_sub_{int(time.time()*1000)}"
                 new_scene["parent_id"] = parent_scene["scene_id"]
                 new_scene["is_sub_panel"] = True
                 
-                # Insert it right after the parent!
                 self.session.insert_scene_after(idx, new_scene)
                 
             self.refresh_list()
@@ -659,17 +626,12 @@ class ReviewView(ctk.CTkFrame):
         import threading
         from core.project_session import ProjectSession
 
-        # --- Determine series dir and current episode ---
-        # session.project_dir is e.g. â€¦/projects/oka/ep_001
-        # series_dir is â€¦/projects/oka
-        current_ep_dir = self.session.project_dir          # absolute path to ep folder
-        series_dir = os.path.dirname(current_ep_dir)       # series folder (oka/)
-        current_ep_name = os.path.basename(current_ep_dir) # 'ep_001'
+        current_ep_dir = self.session.project_dir
+        series_dir = os.path.dirname(current_ep_dir)
+        current_ep_name = os.path.basename(current_ep_dir)
 
-        # Save current session first
         self.session.save()
 
-        # Find all ep_XXX siblings sorted
         all_eps = sorted([
             ep for ep in os.listdir(series_dir)
             if ep.startswith("ep_") and
@@ -688,7 +650,6 @@ class ReviewView(ctk.CTkFrame):
             messagebox.showerror("Error", f"Could not find {current_ep_name} in series!")
             return
 
-        # --- Append current episode to mega draft (background thread) ---
         allowed_anims = (
             [anim for anim, var in self.anim_vars.items() if var.get()]
             if self.apply_motion_var.get() else []
@@ -716,9 +677,7 @@ class ReviewView(ctk.CTkFrame):
 
         threading.Thread(target=_append_bg, daemon=True).start()
 
-        # --- Navigate ---
         if current_idx + 1 < len(all_eps):
-            # Load next episode
             next_ep = all_eps[current_idx + 1]
             projects_dir = os.path.dirname(series_dir)
             series_name = os.path.basename(series_dir)
@@ -727,7 +686,6 @@ class ReviewView(ctk.CTkFrame):
             if hasattr(self.master, "show_review_view"):
                 self.master.show_review_view(next_session)
         else:
-            # Last episode â€” ask about CapCut draft
             self._ask_finalize_capcut_draft(series_dir)
 
     def _capcut_draft_log(self, ep_name: str, count: int, error: str = None):
@@ -749,7 +707,6 @@ class ReviewView(ctk.CTkFrame):
         series_name = os.path.basename(series_dir)
         mega_data_path = os.path.join(series_dir, "_capcut_draft", "draft_data.json")
 
-        # Count panels so far (includes what was just queued in bg thread)
         total_panels = "unknown"
         if os.path.exists(mega_data_path):
             try:
@@ -772,7 +729,6 @@ class ReviewView(ctk.CTkFrame):
             self.on_back_callback()
             return
 
-        # Ask where to save
         dialog = ctk.CTkToplevel(self)
         dialog.title("Create CapCut Draft")
         dialog.geometry("520x260")
@@ -835,7 +791,7 @@ class ReviewView(ctk.CTkFrame):
         bar = ctk.CTkProgressBar(popup)
         bar.pack(fill="x", padx=20)
         bar.set(0)
-        bar.start()  # indeterminate spin
+        bar.start()
 
         def _run():
             try:

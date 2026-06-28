@@ -17,18 +17,15 @@ class SeriesScraper:
         """
         domain = urlparse(series_url).netloc
         
-        # 1. Webtoons
         if "webtoons.com" in domain:
             return self._scrape_webtoons(series_url)
             
-        # 2. General Manga sites (Asura, Reaper, MangaTX, etc.)
         response = self.session.get(series_url)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
         
         links = []
         
-        # Look for common chapter list containers across different themes
         containers = [
             soup.find('div', id='chapterlist'),
             soup.find('ul', class_='main'),
@@ -42,36 +39,28 @@ class SeriesScraper:
         chapter_list = next((c for c in containers if c is not None), None)
         
         if chapter_list:
-            # If we found a container, EVERY link inside it is a chapter. No pattern needed.
             for a in chapter_list.find_all('a', href=True):
                 links.append(a['href'])
         else:
-            # Fallback: find links by checking both URL and visible text
             for a in soup.find_all('a', href=True):
                 href = a['href']
                 text = a.get_text(separator=' ').strip().lower()
                 
-                # Pattern match the text (e.g., "Chapter 12", "Ch 12", "Ep 12")
                 text_match = bool(re.search(r'\b(chapter|ch\.|ch|ep\.|ep|episode)\s*\d+', text))
                 
-                # Loose URL match
                 url_match = 'chapter' in href.lower() or 'episode' in href.lower() or '-ch-' in href.lower()
                 
                 if text_match or url_match:
                     links.append(href)
                     
-        # Ensure absolute URLs
         absolute_links = []
         for link in links:
             if link.startswith('/'):
                 link = urljoin(series_url, link)
             absolute_links.append(link)
                     
-        # Remove duplicates while preserving order
         unique_links = list(dict.fromkeys(absolute_links))
         
-        # Determine if the list is ascending or descending
-        # Usually, manga sites show latest chapter first (descending). We want ascending (1 to latest).
         if unique_links:
             first_link = unique_links[0]
             last_link = unique_links[-1]
@@ -79,9 +68,7 @@ class SeriesScraper:
             first_num = self._extract_number(first_link)
             last_num = self._extract_number(last_link)
             
-            # If we couldn't extract numbers from URL, try extracting from the soup text
             if first_num is None or last_num is None:
-                # Assuming the list is naturally descending (latest first) on most manga sites
                 unique_links.reverse()
             elif first_num > last_num:
                 unique_links.reverse()
@@ -98,7 +85,6 @@ class SeriesScraper:
         response = self.session.get(url)
         response.raise_for_status()
         
-        # Find title_no
         title_match = re.search(r'title_no=(\d+)', response.url)
         if not title_match:
             title_match = re.search(r'title_no=(\d+)', response.text)
@@ -110,7 +96,6 @@ class SeriesScraper:
             
         title_no = title_match.group(1)
         
-        # Find the base list URL
         if '/list' in response.url:
             list_url = response.url.split('?')[0]
         else:
@@ -122,7 +107,6 @@ class SeriesScraper:
                 elif list_url.startswith('/'):
                     list_url = 'https://www.webtoons.com' + list_url
             else:
-                # fallback string manipulation
                 list_url = response.url.split('?')[0].rsplit('/', 2)[0] + '/list'
                 
         links = []
@@ -153,14 +137,12 @@ class SeriesScraper:
             if not page_links:
                 break
                 
-            # Stop if we hit a page that returns the same links (Webtoons sometimes loops the last page)
             if all(link in links for link in page_links):
                 break
                 
             links.extend(page_links)
             page += 1
             
-        # Remove duplicates and reverse so episode 1 is first
         unique_links = list(dict.fromkeys(links))
         unique_links.reverse()
         return unique_links

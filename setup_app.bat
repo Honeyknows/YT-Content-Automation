@@ -4,7 +4,6 @@ echo ==========================================
 echo Starting Setup for Client PC (With GPU Support)...
 echo ==========================================
 
-:: Check if Python is installed
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo [ERROR] Python is not installed or not added to PATH!
@@ -33,7 +32,6 @@ call venv\Scripts\activate.bat
 
 echo.
 echo [3/5] Installing PyTorch with NVIDIA GPU (CUDA) Support...
-:: We install this first so other libraries like ultralytics and easyocr use it.
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 
 echo.

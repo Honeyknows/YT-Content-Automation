@@ -14,17 +14,14 @@ class ProcessingView(ctk.CTkFrame):
         super().__init__(master)
         self.on_complete_callback = on_complete_callback
         
-        # Grid layout
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
         
-        # --- Top Frame (Input & Controls) ---
         self.top_frame = ctk.CTkFrame(self, height=80)
         self.top_frame.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
         self.top_frame.grid_columnconfigure(1, weight=1)
         self.top_frame.grid_columnconfigure(3, weight=0)
         
-        # Sub-frame for URL Label and Auto-Gen button
         self.url_label_frame = ctk.CTkFrame(self.top_frame, fg_color="transparent")
         self.url_label_frame.grid(row=0, column=0, padx=5, pady=10)
         
@@ -53,7 +50,6 @@ class ProcessingView(ctk.CTkFrame):
         self.start_button = ctk.CTkButton(self.top_frame, text="Start Processing", command=self.start_processing)
         self.start_button.grid(row=0, column=5, padx=5, pady=10)
 
-        # ── Row 1: extra processing controls ────────────────────────────────
         extra_row = ctk.CTkFrame(self.top_frame, fg_color="transparent")
         extra_row.grid(row=1, column=0, columnspan=9, padx=5, pady=(0, 8), sticky="w")
 
@@ -85,7 +81,6 @@ class ProcessingView(ctk.CTkFrame):
         self.history_btn.grid(row=0, column=8, padx=5, pady=10)
         
         
-        # --- Middle Frame (Dashboard, Logs & Preview) ---
         self.mid_frame = ctk.CTkFrame(self)
         self.mid_frame.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
         self.mid_frame.grid_columnconfigure(0, weight=1)
@@ -93,12 +88,10 @@ class ProcessingView(ctk.CTkFrame):
         self.mid_frame.grid_rowconfigure(0, weight=0)
         self.mid_frame.grid_rowconfigure(1, weight=1)
         
-        # Dashboard Stats Panel
         self.stats_frame = ctk.CTkFrame(self.mid_frame)
         self.stats_frame.grid(row=0, column=0, padx=10, pady=10, sticky="new")
         self.stats_frame.grid_columnconfigure(1, weight=1)
         
-        # System Stats (Top)
         self.sys_stats_label = ctk.CTkLabel(self.stats_frame, text="⚙️ CPU: --% | RAM: --% | GPU: --", font=ctk.CTkFont(size=12, weight="bold"))
         self.sys_stats_label.grid(row=0, column=0, columnspan=2, pady=(10, 5))
         
@@ -147,11 +140,9 @@ class ProcessingView(ctk.CTkFrame):
         self.update_sys_stats_loop()
         self.update_storage_loop()
         
-        # Log Panel
         self.log_textbox = ctk.CTkTextbox(self.mid_frame, state="disabled", font=ctk.CTkFont(size=14))
         self.log_textbox.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
         
-        # Preview Panel
         self.preview_frame = ctk.CTkFrame(self.mid_frame)
         self.preview_frame.grid(row=0, column=1, rowspan=2, padx=10, pady=10, sticky="nsew")
         self.preview_frame.grid_rowconfigure(1, weight=1)
@@ -184,7 +175,6 @@ class ProcessingView(ctk.CTkFrame):
         self.next_btn = ctk.CTkButton(self.nav_frame, text="Next >", width=60, command=self.preview_next, state="disabled")
         self.next_btn.pack(side="left", padx=5)
         
-        # --- Bottom Frame (Progress) ---
         self.bottom_frame = ctk.CTkFrame(self)
         self.bottom_frame.grid(row=2, column=0, padx=10, pady=10, sticky="ew")
         self.bottom_frame.grid_columnconfigure(0, weight=1)
@@ -207,7 +197,6 @@ class ProcessingView(ctk.CTkFrame):
             command=self._open_script_tool)
         self.script_tool_btn.grid(row=0, column=2, padx=10, pady=10)
         
-        # --- Logic variables ---
         self.ui_queue = queue.Queue()
         self.is_processing = False
         self._cancel_event = threading.Event()
@@ -250,7 +239,6 @@ class ProcessingView(ctk.CTkFrame):
             if self.is_processing and self.project_session:
                 import os
                 
-                # Get size of the series base folder
                 series_dir = os.path.dirname(self.project_session.project_dir)
                 total_size = 0
                 for dirpath, _, filenames in os.walk(series_dir):
@@ -259,7 +247,6 @@ class ProcessingView(ctk.CTkFrame):
                         if not os.path.islink(fp):
                             total_size += os.path.getsize(fp)
                             
-                # Convert to MB
                 mb = total_size / (1024 * 1024)
                 if mb > 1024:
                     self.stat_storage_val.configure(text=f"{mb/1024:.2f} GB")
@@ -285,14 +272,11 @@ class ProcessingView(ctk.CTkFrame):
                 with open(filepath, 'r', encoding='utf-8') as f:
                     content = f.read()
                 
-                # Filter out empty lines
                 lines = [line.strip() for line in content.split('\n') if line.strip()]
                 
-                # Overwrite textbox
                 self.url_textbox.delete("1.0", "end")
                 self.url_textbox.insert("1.0", '\n'.join(lines))
                 
-                # Display success
                 self.log_textbox.configure(state="normal")
                 self.log_textbox.insert("end", f"Loaded {len(lines)} URLs from {os.path.basename(filepath)}\n")
                 self.log_textbox.see("end")
@@ -313,7 +297,6 @@ class ProcessingView(ctk.CTkFrame):
             
         import threading
         
-        # Show fetching popup
         popup = ctk.CTkToplevel(self)
         popup.title("Fetching Chapters...")
         popup.geometry("400x200")
@@ -345,7 +328,6 @@ class ProcessingView(ctk.CTkFrame):
         mb.showerror("Fetch Failed", f"Error fetching chapters:\n\n{error_msg}")
 
     def _show_fetch_success(self, popup, links):
-        # Clear the fetching layout
         for widget in popup.winfo_children():
             widget.destroy()
             
@@ -360,8 +342,6 @@ class ProcessingView(ctk.CTkFrame):
         
         ctk.CTkLabel(range_frame, text="From Chapter:").pack(side="left", padx=5)
         
-        # Determine the numbers for dropdowns based on index (1 to N)
-        # Since websites might have chapter 0 or prologue, we just use 1 to N logic
         options = [str(i+1) for i in range(len(links))]
         
         start_dropdown = ctk.CTkComboBox(range_frame, values=options, width=80)
@@ -372,7 +352,6 @@ class ProcessingView(ctk.CTkFrame):
         
         end_dropdown = ctk.CTkComboBox(range_frame, values=options, width=80)
         
-        # Default to a batch of 10 or max available
         default_end = min(10, len(links))
         end_dropdown.set(options[default_end - 1])
         end_dropdown.pack(side="left", padx=5)
@@ -383,7 +362,7 @@ class ProcessingView(ctk.CTkFrame):
                 e_idx = int(end_dropdown.get()) - 1
                 
                 if s_idx > e_idx:
-                    s_idx, e_idx = e_idx, s_idx # Swap if they put them backwards
+                    s_idx, e_idx = e_idx, s_idx
                     
                 selected_links = links[s_idx:e_idx + 1]
                 
@@ -444,14 +423,12 @@ class ProcessingView(ctk.CTkFrame):
         if not os.path.exists(projects_dir):
             os.makedirs(projects_dir)
 
-        # NEW: find series folders (support both new nested and old flat formats)
         series_list = []
         for d in sorted(os.listdir(projects_dir)):
             series_path = os.path.join(projects_dir, d)
             if not os.path.isdir(series_path):
                 continue
                 
-            # Check for new nested format (ep_XXX subfolders)
             ep_dirs = sorted([
                 ep for ep in os.listdir(series_path)
                 if ep.startswith("ep_") and
@@ -466,13 +443,11 @@ class ProcessingView(ctk.CTkFrame):
                 )
                 series_list.append((d, first_ep, latest_mtime, len(ep_dirs)))
             else:
-                # Check for old flat format (session.json right in the series folder)
                 old_session_path = os.path.join(series_path, "session.json")
                 if os.path.exists(old_session_path):
                     latest_mtime = os.path.getmtime(old_session_path)
                     series_list.append((d, "", latest_mtime, 1))
 
-        # Sort by most recently modified
         series_list.sort(key=lambda x: x[2], reverse=True)
         
         if not series_list:
@@ -504,8 +479,6 @@ class ProcessingView(ctk.CTkFrame):
         from core.project_session import ProjectSession
         import os
         
-        # If episode_name exists, it's the new nested format 'series/ep_XXX'
-        # Otherwise, it's the old flat format 'series'
         if episode_name:
             proj_rel = f"{series_name}/{episode_name}"
         else:
@@ -585,7 +558,6 @@ class ProcessingView(ctk.CTkFrame):
                         total = item["total"]
                         phase = getattr(self, 'current_phase', '')
                         
-                        # Accumulate totals for batch
                         if "download" in phase.lower():
                             base_dl = getattr(self, 'batch_accum_dl', 0)
                             self.stat_slices_val.configure(text=f"{base_dl + processed} / {base_dl + total}")
@@ -606,7 +578,6 @@ class ProcessingView(ctk.CTkFrame):
                             batch_total = getattr(self, 'batch_total', 1)
                             batch_current = getattr(self, 'batch_current', 0)
                             
-                            # Fractional progress of the entire batch
                             current_progress = batch_current + (processed / total)
                             if current_progress > 0:
                                 avg_time_per_ep = elapsed / current_progress
@@ -640,14 +611,12 @@ class ProcessingView(ctk.CTkFrame):
                         self.review_button.configure(state="disabled")
                         self.stat_status_val.configure(text="Processing Cancelled")
                         self.stat_eta_val.configure(text="00:00")
-                        self.batch_queue = [] # clear queue
+                        self.batch_queue = []
                     else:
-                        # If there are more items in the batch, process the next one!
                         if getattr(self, 'batch_queue', []):
                             self.accumulate_batch_totals()
                             self.process_next_in_batch()
                         else:
-                            # The entire batch is finished!
                             self.start_button.configure(state="normal")
                             self.cancel_button.configure(state="disabled", text="Cancel")
                             is_single = getattr(self, 'batch_total', 1) == 1
@@ -666,7 +635,6 @@ class ProcessingView(ctk.CTkFrame):
         self.after(100, self.process_queue)
 
     def accumulate_batch_totals(self):
-        # Accumulate completed episode stats
         try:
             dl_text = self.stat_slices_val.cget("text")
             ext_text = self.stat_images_val.cget("text")
@@ -741,10 +709,8 @@ class ProcessingView(ctk.CTkFrame):
         self.batch_current += 1
         url = self.batch_queue.pop(0)
         
-        # NEW: nested folder path — projects/oka/ep_001, ep_002, ...
         ep_num = f"ep_{self.batch_current:03d}"
         if self.batch_total == 1:
-            # Single episode — still uses nested: series/ep_001
             current_folder = f"{self.base_folder_name}/{ep_num}"
         else:
             current_folder = f"{self.base_folder_name}/{ep_num}"
@@ -756,7 +722,6 @@ class ProcessingView(ctk.CTkFrame):
         self._cancel_event.clear()
         self.start_time = time.time()
         
-        # Determine the target episode display name
         ep_num = f"ep_{self.batch_current:03d}"
         target_display = ep_num if self.batch_total == 1 else f"{self.base_folder_name} ({ep_num})"
         
@@ -782,19 +747,16 @@ class ProcessingView(ctk.CTkFrame):
         import os
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         
-        # Wipe the series folder (projects/oka/)
         project_dir = os.path.join(base_dir, "projects", folder_name)
         if os.path.exists(project_dir):
             shutil.rmtree(project_dir, ignore_errors=True)
             self.log(f"Deleted series folder: {folder_name}")
             
-        # Wipe workspace folder
         workspace_dir = os.path.join(os.getcwd(), "workspace")
         if os.path.exists(workspace_dir):
             shutil.rmtree(workspace_dir, ignore_errors=True)
             self.log("Cleared temporary workspace.")
             
-        # Reset UI
         self.log_textbox.configure(state="normal")
         self.log_textbox.delete("1.0", "end")
         self.log_textbox.configure(state="disabled")
@@ -834,14 +796,11 @@ class ProcessingView(ctk.CTkFrame):
             
             domain = urllib.parse.urlparse(url).netloc
             proj_name = folder_name
-            # The base directory is the project workspace root
             base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             
-            # Use a "projects" folder to keep things tidy
             projects_dir = os.path.join(base_dir, "projects")
             os.makedirs(projects_dir, exist_ok=True)
             
-            # proj_name is already 'oka/ep_001' from process_next_in_batch
             self.project_session = ProjectSession(projects_dir, proj_name)
             if getattr(self, 'batch_current', 1) == 1:
                 self.first_batch_session = self.project_session
@@ -880,11 +839,9 @@ class ProcessingView(ctk.CTkFrame):
             self.log("Detecting and extracting panels from slices...")
             self.update_progress(0.0)
             
-            # Use OpenCV to save extracted panels into raw_dir
             import cv2
             all_panels = []
             
-            # Extract panels from the combined stitched slices
             panels = processor.extract_panels(downloaded_slices)
             total_extracted = len(panels)
             for idx, p in enumerate(panels):
@@ -903,7 +860,7 @@ class ProcessingView(ctk.CTkFrame):
             min_h = getattr(self, 'current_min_height', 300)
             short_behavior = getattr(self, 'current_short_panel_behavior', 'Flag')
             do_upscale = getattr(self, 'current_upscale', False)
-            _merge_buffer = None  # holds panel waiting to be merged with next
+            _merge_buffer = None
 
             for i, panel_path in enumerate(all_panels):
                 if self._cancel_event.is_set():
@@ -927,7 +884,6 @@ class ProcessingView(ctk.CTkFrame):
                     panel_height = process_result["crop_dimensions"][1]
                     is_short = panel_height < min_h
 
-                    # Apply short-panel behavior
                     if is_short and short_behavior == "Skip":
                         self.log(f"  -> Short panel ({panel_height}px < {min_h}px): Skipped.")
                         self.update_stats(processed=i+1, total=total_panels)
@@ -952,7 +908,6 @@ class ProcessingView(ctk.CTkFrame):
                                 "suggested_for_deletion": False
                             }
                         else:
-                            # Already have a buffered panel — merge both and flush
                             import cv2 as _cv2
                             import numpy as _np
                             img_a = _cv2.imread(_merge_buffer["cleaned_image_path"])
@@ -970,7 +925,6 @@ class ProcessingView(ctk.CTkFrame):
                         self.update_preview(panel_path, clean_path)
                         continue
 
-                    # If we have a merge buffer and current panel is tall enough, merge and flush
                     if _merge_buffer is not None:
                         import cv2 as _cv2
                         import numpy as _np
@@ -1022,7 +976,6 @@ class ProcessingView(ctk.CTkFrame):
                 self.update_stats(processed=i+1, total=total_panels)
                 self.update_preview(panel_path, clean_path)
 
-            # Flush any remaining merge buffer
             if _merge_buffer is not None:
                 pending_scenes.append(_merge_buffer)
 
@@ -1040,7 +993,6 @@ class ProcessingView(ctk.CTkFrame):
             import traceback
             self.log(traceback.format_exc())
             self.ui_queue.put({"type": "done", "cancelled": True})
-
 
 
     def cancel_processing(self):

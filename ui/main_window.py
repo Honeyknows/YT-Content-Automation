@@ -11,12 +11,10 @@ class MainWindow(ctk.CTk):
         self.title("YT Content Automation")
         self.geometry("1100x750")
 
-        # Row 0 = header bar, Row 1 = content
         self.grid_rowconfigure(0, weight=0)
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
-        # ── Minimal branded header ────────────────────────────────────
         header = ctk.CTkFrame(self, height=28, corner_radius=0, fg_color="transparent")
         header.grid(row=0, column=0, sticky="ew")
         header.grid_columnconfigure(0, weight=1)
@@ -32,7 +30,6 @@ class MainWindow(ctk.CTk):
         link_lbl.bind("<Button-1>", lambda e: webbrowser.open("https://github.com/honeyknows"))
         link_lbl.bind("<Enter>",    lambda e: link_lbl.configure(text_color="#ff6666"))
         link_lbl.bind("<Leave>",    lambda e: link_lbl.configure(text_color="#ff4444"))
-        # ─────────────────────────────────────────────────────────────
 
         self.current_view = None
         self.protocol("WM_DELETE_WINDOW", self.on_closing)

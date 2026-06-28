@@ -19,14 +19,12 @@ class AudioGenerator:
         
     def generate_audio(self, text: str, output_path: str):
         """Generates an MP3 from text using edge-tts."""
-        # Use a new event loop to avoid 'already running' crash
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             loop = None
             
         if loop and loop.is_running():
-            # We're inside an existing event loop — run in a new thread
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor() as pool:
                 future = pool.submit(asyncio.run, self._generate_audio_async(text, output_path))
@@ -42,7 +40,6 @@ class AudioGenerator:
         try:
             from mutagen.mp3 import MP3
             audio = MP3(file_path)
-            # Add 250ms padding so CapCut doesn't cut off the very end of the word
             return int(audio.info.length * 1000) + 250
         except Exception as e:
             logger.warning(f"Failed to get exact audio duration using mutagen: {e}")
@@ -70,7 +67,7 @@ class AudioGenerator:
         try:
             self.generate_audio(text, output_path)
             duration_ms = self.get_audio_duration_ms(output_path)
-            return duration_ms * 1000 # Convert to microseconds for CapCut
+            return duration_ms * 1000
         except Exception as e:
             logger.error(f"Scene TTS Error: {e}")
             return 3000000
@@ -112,10 +109,8 @@ class AudioGenerator:
                 else:
                     logger.error(err_msg)
                     
-                # Silence Injection Fallback
                 try:
                     from pydub import AudioSegment
-                    # Estimate duration: ~150 words per minute -> 2.5 words per second
                     word_count = len(para.split())
                     estimated_duration_ms = int((word_count / 2.5) * 1000)
                     if estimated_duration_ms < 1000:
@@ -150,20 +145,17 @@ class AudioGenerator:
         Generates per-paragraph MP3s and concatenates them into ONE long MP3.
         Returns (combined_audio_path, total_duration_ms, timeline_data).
         """
-        # Step 1: Generate individual paragraph audio files
         timeline_data = self.process_script_to_audio(script_text, output_dir, callback)
         
         if not timeline_data:
             return None, 0, []
         
-        # Step 2: Concatenate into one long MP3
         combined_path = os.path.join(output_dir, "combined_voiceover.mp3")
         
         try:
             from pydub import AudioSegment
             import pydub
             
-            # Point to local ffmpeg if it exists by adding it to PATH
             ffmpeg_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "bin", "ffmpeg"))
             if os.path.exists(ffmpeg_dir):
                 os.environ["PATH"] += os.pathsep + ffmpeg_dir
@@ -175,7 +167,6 @@ class AudioGenerator:
                 if os.path.exists(audio_path):
                     segment = AudioSegment.from_mp3(audio_path)
                     combined += segment
-                    # Add a small pause between paragraphs (300ms)
                     combined += AudioSegment.silent(duration=300)
                     
             combined.export(combined_path, format="mp3")
@@ -185,7 +176,6 @@ class AudioGenerator:
                 callback(f"Combined audio saved: {total_duration_ms / 1000:.1f}s total")
                 
         except ImportError:
-            # Fallback: binary concatenation (less reliable but works)
             logger.warning("pydub not available. Using binary concatenation fallback.")
             with open(combined_path, 'wb') as outfile:
                 total_duration_ms = 0

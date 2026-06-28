@@ -26,13 +26,11 @@ class ProjectSession:
                 logger.info(f"Loaded existing session with {len(self.scenes)} scenes.")
             except (json.JSONDecodeError, Exception) as e:
                 logger.warning(f"Session file corrupted: {e}. Trying backup...")
-                # Try loading from backup
                 if os.path.exists(self.backup_file):
                     try:
                         with open(self.backup_file, 'r', encoding='utf-8') as f:
                             self.scenes = json.load(f)
                         logger.info(f"Recovered {len(self.scenes)} scenes from backup.")
-                        # Restore the main file from backup
                         self.save()
                     except Exception as e2:
                         logger.error(f"Backup also corrupted: {e2}. Starting fresh.")

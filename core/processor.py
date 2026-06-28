@@ -47,7 +47,6 @@ class Processor:
                 torch.jit.load = original_jit_load
         self.lama = Processor._lama_instance
 
-        # _yolo_instance: None = not tried, False = failed/disabled, object = loaded
         if Processor._yolo_instance is None:
             try:
                 logger.info("Initializing YOLOv8s character detection model...")
@@ -60,9 +59,6 @@ class Processor:
                 Processor._yolo_instance = False
         self.yolo = Processor._yolo_instance
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # Content-aware whitespace crop
-    # ─────────────────────────────────────────────────────────────────────────
 
     def _crop_to_content(self, img: np.ndarray) -> np.ndarray:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -96,9 +92,6 @@ class Processor:
             return img[top_y:bottom_y, :]
         return img
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # YOLO-based character forbidden zones
-    # ─────────────────────────────────────────────────────────────────────────
 
     def _get_character_forbidden_zones(self, giant_img: np.ndarray) -> set:
         """Return a set of Y rows where a detected character exists (including buffer).
@@ -136,9 +129,6 @@ class Processor:
                     f"{len(forbidden)} rows protected.")
         return forbidden
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # Panel extraction — batch entry point
-    # ─────────────────────────────────────────────────────────────────────────
 
     def extract_panels(self, slice_paths: list[str]) -> list[np.ndarray]:
         BATCH_SIZE = 30
@@ -178,9 +168,6 @@ class Processor:
 
         return all_panels
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # Panel extraction — gutter detection + YOLO-aware smart cut
-    # ─────────────────────────────────────────────────────────────────────────
 
     def _extract_panels_from_image(self, giant_img: np.ndarray) -> list[np.ndarray]:
         gray = cv2.cvtColor(giant_img, cv2.COLOR_BGR2GRAY)
@@ -198,7 +185,6 @@ class Processor:
         )
         content_rows = ~is_gutter
 
-        # Get YOLO forbidden zones (rows inside character bounding boxes)
         try:
             forbidden_rows = self._get_character_forbidden_zones(giant_img)
         except Exception as e:
@@ -214,7 +200,7 @@ class Processor:
 
         soft_limit = int(self.max_height * 0.72)
         hard_limit = self.max_height
-        absolute_max = self.max_height * 2   # Emergency ceiling — cut regardless of characters
+        absolute_max = self.max_height * 2
 
         for y, is_content in enumerate(content_rows):
             if is_content:
@@ -226,7 +212,6 @@ class Processor:
                 panel_h = y - start_y
 
                 if in_panel and panel_h > soft_limit:
-                    # Prefer a cut that is both low-complexity AND outside a character
                     if row_std[y] < 15.0 and y not in forbidden_rows:
                         cropped = self._crop_to_content(giant_img[start_y:y, :])
                         if cropped is not None and cropped.shape[0] > 0:
@@ -237,7 +222,6 @@ class Processor:
                         search_start = max(start_y + soft_limit, y - 800)
                         search_end = y
 
-                        # Best cut: lowest std among rows NOT in forbidden zones
                         safe_candidates = [
                             (i, row_std[i])
                             for i in range(search_start, search_end)
@@ -247,14 +231,11 @@ class Processor:
                         if safe_candidates:
                             best_y = min(safe_candidates, key=lambda x: x[1])[0]
                         elif panel_h > absolute_max:
-                            # Absolute ceiling — must cut, pick least-bad row in the zone
                             logger.warning(f"Absolute max ({absolute_max}px) exceeded. "
                                            f"Forced cut at y={y} (through character).")
                             best_offset = int(np.argmin(row_std[search_start:search_end]))
                             best_y = search_start + best_offset
                         else:
-                            # Hard limit hit but safe candidates exist further ahead —
-                            # keep growing and let a gutter (or absolute_max) decide.
                             continue
 
                         cropped = self._crop_to_content(giant_img[start_y:best_y, :])
@@ -279,9 +260,6 @@ class Processor:
 
         return panels
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # Text mask builder — precise bubble detection (white + dark) + flood-fill
-    # ─────────────────────────────────────────────────────────────────────────
 
     def _build_text_mask(self, img_bgr: np.ndarray, ocr_results: list) -> np.ndarray:
         """Build a precise mask covering only the text bounding boxes.
@@ -294,21 +272,15 @@ class Processor:
         if not ocr_results:
             return mask
 
-        # Draw the text bounding boxes
         for bbox, text, prob in ocr_results:
             pts = np.array(bbox, dtype=np.int32)
             cv2.fillPoly(mask, [pts], 255)
 
-        # Dilate by 7px to cover text shadows/anti-aliasing, but keep it tight
-        # so we don't bleed outside the speech bubbles into the artwork.
         kernel = np.ones((7, 7), np.uint8)
         mask = cv2.dilate(mask, kernel, iterations=1)
 
         return mask
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # (Legacy) Smart crop — kept but still disabled in process_image
-    # ─────────────────────────────────────────────────────────────────────────
 
     def _calculate_smart_crop(self, image_np, text_boxes):
         h, w = image_np.shape[:2]
@@ -347,9 +319,6 @@ class Processor:
             return 0, h
         return top_crop_y, bottom_crop_y
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # Main processing entry point
-    # ─────────────────────────────────────────────────────────────────────────
 
     def process_image(self, image_path: str, output_path: str,
                       manual_crop_rect: list[int] = None,
@@ -367,11 +336,9 @@ class Processor:
                 raise ValueError("Invalid crop boundaries: resulting image is empty.")
             img = img[my1:my2, mx1:mx2]
 
-        # 1. OCR
         ocr_results = self.reader.readtext(img)
         extracted_text = [r[1] for r in ocr_results]
 
-        # Calculate text area ratio for auto-flagging text-heavy panels
         total_text_area = 0
         for bbox, _, _ in ocr_results:
             tx1 = min(pt[0] for pt in bbox)
@@ -382,12 +349,10 @@ class Processor:
         
         img_area = img.shape[0] * img.shape[1]
         text_ratio = total_text_area / img_area if img_area > 0 else 0
-        is_text_heavy = text_ratio > 0.08  # Flag if text boxes take up > 8% of the panel
+        is_text_heavy = text_ratio > 0.08
 
-        # 2. Build precise text + bubble mask
         mask = self._build_text_mask(img, ocr_results)
 
-        # --- AUTO EDGE-CROP LOGIC ---
         gray = cv2.GaussianBlur(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
         grad_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
         grad_y = np.abs(grad_y)
@@ -404,22 +369,18 @@ class Processor:
             
             if tx2 <= tx1 or ty2 <= ty1: continue
             
-            # TOP BUBBLE
             if ty1 < 100:
                 bubble_bottom = ty2
-                # Scan downwards to find the bubble's bottom edge
                 for y in range(ty2, min(ty2 + 150, ih)):
                     if np.max(grad_y[y, tx1:tx2]) > 50:
                         bubble_bottom = y
                         break
-                ptop = bubble_bottom + 6  # 6px padding to cleanly remove bubble stroke
+                ptop = bubble_bottom + 6
                 if ptop < ih * 0.35 and ptop > crop_top:
                     crop_top = ptop
                     
-            # BOTTOM BUBBLE
             if ty2 > ih - 100:
                 bubble_top = ty1
-                # Scan upwards to find the bubble's top edge
                 for y in range(ty1, max(ty1 - 150, 0), -1):
                     if np.max(grad_y[y, tx1:tx2]) > 50:
                         bubble_top = y
@@ -435,7 +396,6 @@ class Processor:
 
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        # 3. LaMa inpainting
         if np.count_nonzero(mask) > 0:
             img_pil = Image.fromarray(img_rgb)
             mask_pil = Image.fromarray(mask).convert('L')
@@ -467,7 +427,6 @@ class Processor:
             if cleaned_bgr.shape[:2] != img.shape[:2]:
                 cleaned_bgr = cv2.resize(cleaned_bgr, (img.shape[1], img.shape[0]))
 
-            # 4. Feathered edge blend: smooths the LaMa boundary back into original artwork
             mask_blur = cv2.GaussianBlur(mask, (7, 7), 0)
             alpha = mask_blur.astype(np.float32) / 255.0
             alpha = alpha[:, :, np.newaxis]
@@ -478,7 +437,6 @@ class Processor:
 
         crop_dims = [cleaned_img.shape[1], cleaned_img.shape[0]]
 
-        # 5. Optional 2× upscale + unsharp mask
         if upscale:
             uh, uw = cleaned_img.shape[:2]
             up = cv2.resize(cleaned_img, (uw * 2, uh * 2), interpolation=cv2.INTER_LANCZOS4)

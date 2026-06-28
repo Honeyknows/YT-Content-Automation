@@ -6,7 +6,6 @@ from core.config_manager import load_config
 
 logger = logging.getLogger(__name__)
 
-# Root directory of the project (where main.py lives)
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class Exporter:
@@ -72,7 +71,6 @@ class Exporter:
             shutil.copy2(img_path, out_path)
             return out_path
         except Exception:
-            # Fallback
             import cv2
             import numpy as np
             blank = np.zeros((1080, 1920, 3), dtype=np.uint8)
@@ -106,10 +104,8 @@ class Exporter:
             
         output_dir = os.path.join(capcut_draft_dir, project_name)
         
-        # Use __file__-relative path instead of os.getcwd()
         template_dir = os.path.join(PROJECT_ROOT, "capcut_template")
         
-        # Fix: copytree with dirs_exist_ok to prevent crash on re-export
         if os.path.exists(output_dir):
             shutil.rmtree(output_dir, ignore_errors=True)
         shutil.copytree(template_dir, output_dir)
@@ -126,7 +122,6 @@ class Exporter:
         if "audios" not in draft["materials"]:
             draft["materials"]["audios"] = []
             
-        # Collect default material references from template (e.g. Canvas Blur, Speeds)
         extra_refs = []
         for mat_type, items in draft.get("materials", {}).items():
             if mat_type not in ("videos", "audios", "drafts", "texts", "transitions"):
@@ -136,25 +131,21 @@ class Exporter:
                             extra_refs.append(item["id"])
         
         current_time_us = 0
-        default_duration_us = 3000000  # 3 seconds
+        default_duration_us = 3000000
         
         script_data = {}
         
-        # Create 16:9 frames directory
         frames_dir = os.path.join(self.export_dir, "16x9_frames")
         os.makedirs(frames_dir, exist_ok=True)
         
-        # Calculate per-scene duration from audio timeline if available
         scene_durations = {}
         if audio_timeline and combined_audio_path:
-            # Distribute audio timeline paragraphs across scenes
-            # Simple approach: divide total audio evenly across scenes
             total_audio_ms = sum(entry.get("duration_ms", 3000) for entry in audio_timeline)
             total_scenes = len(active_scenes)
             if total_scenes > 0:
                 per_scene_ms = total_audio_ms / total_scenes
                 for i in range(total_scenes):
-                    scene_durations[i] = int(per_scene_ms * 1000)  # to microseconds
+                    scene_durations[i] = int(per_scene_ms * 1000)
         
         last_anim = None
         
@@ -168,17 +159,14 @@ class Exporter:
                     progress_callback(new_idx + 1, len(active_scenes), 
                                      f"Preparing Scene {new_idx + 1}/{len(active_scenes)}...")
                 
-                # Create 16:9 frame for YouTube
                 frame_path = os.path.join(frames_dir, f"frame_{new_idx:04d}.jpg")
                 self._create_16x9_frame(img_path, frame_path)
                 
-                # Determine duration
                 capcut_duration = scene_durations.get(new_idx, default_duration_us)
                 
                 mat_id = generate_id()
                 capcut_start = current_time_us
                 
-                # --- Video Material ---
                 draft["materials"]["videos"].append({
                     "id": mat_id,
                     "type": "photo",
@@ -190,7 +178,6 @@ class Exporter:
                     "material_name": os.path.basename(frame_path)
                 })
                 
-                # 9:16 frames are already 1080x1920, no scaling needed
                 scale_val = 1.0
                 
                 seg_id = generate_id()
@@ -210,11 +197,9 @@ class Exporter:
                     "common_keyframes": []
                 }
                 
-                # --- Apply Animation ---
                 if allowed_animations:
                     import random
                     
-                    # Prevent back-to-back same animations (if multiple options available)
                     available = allowed_animations.copy()
                     if last_anim in available and len(available) > 1:
                         available.remove(last_anim)
@@ -271,7 +256,6 @@ class Exporter:
                 video_track["segments"].append(seg_data)
                 current_time_us += capcut_duration
                 
-            # Build script hierarchy
             scene_id = scene.get("scene_id")
             parent_id = scene.get("parent_id")
             ocr_text = " ".join(scene.get("ocr_text", []))
@@ -286,17 +270,15 @@ class Exporter:
                 else:
                     script_data[scene_id]["script_txt"] = ocr_text
         
-        # --- Combined Audio Track ---
         if combined_audio_path and os.path.exists(combined_audio_path):
             audio_mat_id = generate_id()
             
-            # Get actual audio duration
             try:
                 from mutagen.mp3 import MP3
                 audio_info = MP3(combined_audio_path)
                 audio_duration_us = int(audio_info.info.length * 1000000)
             except Exception:
-                audio_duration_us = current_time_us  # Fallback to video duration
+                audio_duration_us = current_time_us
             
             draft["materials"]["audios"].append({
                 "id": audio_mat_id,
@@ -324,7 +306,6 @@ class Exporter:
                 
         draft["duration"] = current_time_us
         
-        # Save hierarchical script
         script_path = os.path.join(self.export_dir, "episode_script.json")
         with open(script_path, 'w', encoding='utf-8') as f:
             json.dump({"episode_script": script_data}, f, indent=4, ensure_ascii=False)
@@ -342,9 +323,6 @@ class Exporter:
         logger.info(f"Generated CapCut project at {output_dir}")
         return output_dir
 
-    # ------------------------------------------------------------------
-    # Incremental Mega Draft helpers (new nested-folder pipeline)
-    # ------------------------------------------------------------------
     _mega_draft_lock = __import__('threading').Lock()
 
     @staticmethod
