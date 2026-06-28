@@ -31,13 +31,13 @@ You give it a source URL. It hands you back a fully narrated script *and* an edi
 | Stage | What happens |
 |---|---|
 | 🔗 **Image Extraction** | Paste source URLs → tool downloads images and uses YOLOv8 to detect and crop the most important panels automatically |
-| 🧹 **Text Removal** | EasyOCR detects text bubbles → LaMa AI inpainting removes them cleanly for use in video |
+| 🧹 **Text Removal** | EasyOCR detects text → LaMa AI inpainting removes them cleanly for use in video |
 | 🧠 **Story Intelligence (Call 1)** | Vision AI reads each panel image and generates a full structured JSON breakdown — characters, dialogue, scene events |
 | ✍️ **Script Writing (Call 2)** | Text AI reads the story JSON and writes a professional YouTube voiceover narration script |
 | 🔍 **Manual Review** | Built-in review screen lets you inspect, reorder, merge, or delete extracted panels before script generation |
 | 🗣️ **Voiceover (TTS)** | Microsoft Edge TTS generates MP3 audio from the script — free, local, no API key needed |
-| 🧩 **CapCut Export** | Generates a real, openable CapCut project — images synced to audio timing, 100% editable before you export |
-| 📚 **Mega Merge** | Combines scripts from multiple episodes into one seamless long-form narration with AI-written transitions |
+| 🧩 **CapCut Export** | Generates a real, openable editable draft — images synced to audio timing, 100% editable before you export |
+| 📚 **Mega Merge** | Combines scripts from multiple batches into one seamless long-form narration with AI-written transitions |
 | 💸 **Cost Tracking** | Every run logs estimated API spend per episode (Call 1 + Call 2) |
 | 🖥️ **Desktop GUI** | Full Tkinter desktop app — runs entirely on your machine, no cloud dependency, API keys never leave your PC |
 | ⚙️ **GPU Acceleration** | Automatically uses NVIDIA GPU (CUDA) for YOLOv8, EasyOCR, and LaMa if available — falls back to CPU |
@@ -59,13 +59,13 @@ Story Intelligence  ← Call 1: Vision AI via OpenRouter  (script_tool.py)
     ↓ story_intel.json
 Script Writer  ← Call 2: Text AI via OpenRouter  (script_tool.py)
     ↓ script.txt
-[Optional: Mega Merge — combine multiple episodes]
+[Optional: Mega Merge — combine multiple batches]
     ↓ merged_script.txt
 Edge TTS Voiceover  (core/audio_generator.py)
     ↓ voiceover MP3s
-CapCut Project Exporter  (core/exporter.py)
+Project Exporter  (core/exporter.py)
     ↓
-Editable CapCut Draft
+Editable Draft
 ```
 
 <br>
@@ -98,11 +98,11 @@ yt-content-automation/
 ├── .env                       # Your API keys (never commit this)
 ├── core/
 │   ├── downloader.py          # Image downloader from source URLs
-│   ├── series_scraper.py      # Series/episode URL handler
+│   ├── series_scraper.py      # Series/batch URL handler
 │   ├── processor.py           # YOLOv8 panel crop + EasyOCR + LaMa inpainting
-│   ├── exporter.py            # CapCut project builder + audio sync
+│   ├── exporter.py            # draft project builder + audio sync
 │   ├── audio_generator.py     # Edge TTS voiceover generator
-│   ├── project_session.py     # Per-episode session manager
+│   ├── project_session.py     # Per-batch session manager
 │   └── config_manager.py      # Config loader
 ├── ui/
 │   ├── main_window.py         # Main dashboard window
