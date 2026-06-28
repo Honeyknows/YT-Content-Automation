@@ -78,17 +78,7 @@ Double-click: setup_app.bat
 ```
 Installs Python venv, PyTorch with CUDA support, and all dependencies automatically.
 
-**Step 2 — Add your API Key**
-
-Setup creates a `.env` file automatically. Open it and add your key:
-```env
-OPENROUTER_API_KEY='sk-or-v1-...'
-OPENROUTER_MODEL_CALL_1='google/gemini-2.5-flash'
-OPENROUTER_MODEL_CALL_2='deepseek/deepseek-chat-v3-0324'
-```
-Get your free key at → https://openrouter.ai/
-
-**Step 3 — Launch**
+**Step 2 — Launch**
 ```
 Double-click: run_app.bat
 ```
